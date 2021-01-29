@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+env|grep -q ^DRYRUN=. && DRYRUN=echo || DRYRUN=
+# 20210129WF - wrap around rocker's dockerized R
+# with specific mountings for rhea/LNCD
+#  * mount /Volumes
+#  * override site-library with what's on the system for that version
+
+n=$(basename $0)
+scritpdir=$(cd $(dirname $0);pwd)
+
+if [ "$n" != "oldr" ]; then
+  ver=${n#*-}
+  $scritpdir/oldr $ver "$@"
+  exit
+fi
+
+if [ $# -lt 1 ]; then 
+   cat <<H 
+USAGE:
+  oldr \$rversion [r args]
+  oldr-\$rversion [r args]
+
+EXAMPLE:
+  oldr 3.5.2  # interactive session
+  oldr-3.5.2  # same as above
+  oldr-3.5.2 Rscript -e 'cat("hello from", version\$version.string, "\n")'
+
+
+VERSIONS:
+  $(ls $(dirname $0)/oldr-*|sed s/.*-//)
+
+NOTE: 
+  make more like
+   # get docker setup
+   cd /opt/ni_tools/rocker-docker-versioned/r-ver
+   git pull
+   # inspect what version you might want
+   ls /opt/ni_tools/Rlib/
+   # build version
+   docker build  -t rocker/r-ver:3.5.2 -f 3.5.2.Dockerfile .
+   # link for easy access (script knows what to do with verson in name)
+   ln -s $scritpdir/oldr{,-3.5.2}
+H
+   exit 1
+fi
+ver="$1"; shift
+$DRYRUN docker run \
+   -v /Volumes:/Volumes:rw -v /data:/data:rw -v /opt/ni_tools/Rlib/$ver:/usr/local/lib/R/site-library/:rw \
+   -i -t \
+   rocker/r-ver:$ver "$@"
